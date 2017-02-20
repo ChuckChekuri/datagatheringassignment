@@ -2,13 +2,10 @@ library(data.table)
 library(dplyr)
 setwd("./UCI HAR Dataset")
 
-# read only the first 6 of 561 columns as needed by the assignment
-# 3 means and 3 std deviations and set the rest to NULL
-cols2Read <- c(rep(NA,6),rep("NULL",555))
 
 # Read only the feature names we need ( first 6 )
 features <- read.table('./features.txt', header=FALSE, 
-		       stringsAsFactors = FALSE, nrows = 6)[,2]
+		       stringsAsFactors = FALSE)[,2]
 
 # read in the activity labels
 act_lab <-read.table("./activity_labels.txt")
@@ -16,11 +13,11 @@ act_lab <-read.table("./activity_labels.txt")
 # read only the data needed for assignment
 subj_test <- read.table('./test/subject_test.txt')
 y_test <- read.table('./test/y_test.txt')
-x_test <- read.table('./test/X_test.txt', colClasses = cols2Read)
+x_test <- read.table('./test/X_test.txt')
 
 subj_train <- read.table('./train/subject_train.txt')
 y_train <- read.table('./train/y_train.txt')
-x_train <- read.table('./train/X_train.txt', colClasses = cols2Read)
+x_train <- read.table('./train/X_train.txt')
 
 # convert these to data tables for easy merging
 act_lab <- as.data.table(act_lab)
@@ -39,19 +36,31 @@ colnames(allrecs) <- c("subject", "activity", features)
 allrecs$subject <- as.factor(allrecs$subject)
 
 # allrecs now has all the rows as specified in the assignment.
+# We only need to select columns with Mean() and Std() only.
+colIdxFun <- function(x) {
+	if (re_matches(x, "mean|std"))
+		if(re_matches(x, "Freq"))
+			FALSE
+	else
+		TRUE
+	else
+		FALSE
+}
+# colidx will have an index of all features with MEAN and STD in the name
+colIdx <- sapply(features, colIdxFun)
+names(colIdx)<- NULL
+
+# select the column indexes and make sure we add subject and activity columns (1,2)
+# this will get the column numbers
+cols2Read <- c(1,2,data.frame(seq(3,563))[colIdx,])
+
+allrecs <- allrecs[,..cols2Read]
 write.table(allrecs, "../measurements.csv", row.names=FALSE, quote=FALSE,sep=",")
 
 
 grouped_means <- allrecs %>% 
    group_by(activity, subject) %>% 
-   summarize( 
-   	AverageBodyAccMeanX=mean(`tBodyAcc-mean()-X`),
-   	AverageBodyAccMeanY=mean(`tBodyAcc-mean()-Y`),
-   	AverageBodyAccMeanZ=mean(`tBodyAcc-mean()-Z`),
-   	AverageBodyAccStdX=mean(`tBodyAcc-std()-X`),
-   	AverageBodyAccStdY=mean(`tBodyAcc-std()-Y`),
-   	AverageBodyAccStdZ=mean(`tBodyAcc-std()-Z`)
-   	)
+   summarize_each(funs(mean))
 
 write.table(grouped_means, "../grouped_means.csv", row.names=FALSE, quote=FALSE,sep=",")
 setwd("..")
