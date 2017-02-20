@@ -1,0 +1,100 @@
+---
+title: "Peer-graded Assignment: Getting and Cleaning Data Course Project"
+author: "Chuck Chekuri"
+date: "2/19/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Codebook
+
+This codebook explains the code in run_analysis.R
+
+Files were downloaded using the following R code.
+The run_analysis.R script assumes the working directory to 
+be the "UCI HAR Dataset" directory.
+
+> setwd("~/GitHub/datasciencecoursera/DataGatheringAssignment")
+> zipurl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+> download.file(zipurl, destfile = "data.zip", method="curl")
+> unzip("data.zip")    
+> setwd("./UCI HAR Dataset")
+
+
+# loading libraries
+> library(data.table)
+> library(dplyr)
+
+## read only what is necessary
+Features has all the 561 columns but we need only 6
+Read only the first 6 of 561 columns as needed by the assignment
+ 3 means and 3 std deviations and set the rest to NULL
+cols2Read creates an list to only read those columsn
+
+> cols2Read <- c(rep(NA,6),rep("NULL",555))
+
+Similarly read only the feature names we need ( first 6 )
+> features <- read.table('./features.txt', header=FALSE, 
+>		       stringsAsFactors = FALSE, nrows = 6)[,2]
+
+### Next we read in the activity labels
+> act_lab <-read.table("./activity_labels.txt")
+
+### read test data 
+> subj_test <- read.table('./test/subject_test.txt')
+> y_test <- read.table('./test/y_test.txt')
+> x_test <- read.table('./test/X_test.txt', colClasses = cols2Read)
+
+### read train data
+> subj_train <- read.table('./train/subject_train.txt')
+> y_train <- read.table('./train/y_train.txt')
+> x_train <- read.table('./train/X_train.txt', colClasses = cols2Read)
+
+### convert these to data tables for easy merging
+> act_lab <- as.data.table(act_lab)
+> y_test <-as.data.table(y_test)
+> y_train <-as.data.table(y_train)
+
+### bind all columns and merge activity labels
+> test_recs <- cbind(subj_test, merge(y_test, act_lab)[,2], x_test)
+> train_recs <- cbind(subj_train, merge(y_train, act_lab)[,2], x_train)
+
+### bind all rows 
+> allrecs <- as.data.table(rbind(train_recs, test_recs))
+
+### label columns
+> colnames(allrecs) <- c("subject", "activity", features)
+> allrecs$subject <- as.factor(allrecs$subject)
+
+### write all the rows to measurements.csv
+> write.table(allrecs, "measurements.csv", row.names=FALSE, quote=FALSE,sep=",")
+
+### create second tidy data of grouped means
+> grouped_means <- allrecs %>% 
+>   group_by(activity, subject) %>% 
+>   summarize( 
+>   	AverageBodyAccMeanX=mean(`tBodyAcc-mean()-X`),
+>   	AverageBodyAccMeanY=mean(`tBodyAcc-mean()-Y`),
+>   	AverageBodyAccMeanZ=mean(`tBodyAcc-mean()-Z`),
+>  	AverageBodyAccStdX=mean(`tBodyAcc-std()-X`),
+>   	AverageBodyAccStdY=mean(`tBodyAcc-std()-Y`),
+>   	AverageBodyAccStdZ=mean(`tBodyAcc-std()-Z`)
+>   	)
+
+### write grouped means to grouped_means.csv
+> write.table(grouped_means, "grouped_means.csv", row.names=FALSE, quote=FALSE,sep=",")
+
+## Output
+### Measurement.csv
+```{r output, include=TRUE}
+x <- read.table("measurements.csv", nrow=10)
+head(x)
+```
+### grouped_means.csv
+```{r groupedMeans, include=TRUE}
+x <- read.table("grouped_means.csv", nrow=10)
+head(x)
+```
