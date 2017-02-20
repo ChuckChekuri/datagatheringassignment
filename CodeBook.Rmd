@@ -28,14 +28,6 @@ be the "UCI HAR Dataset" directory.
 > library(data.table)
 > library(dplyr)
 
-## read only what is necessary
-Features has all the 561 columns but we need only 6
-Read only the first 6 of 561 columns as needed by the assignment
- 3 means and 3 std deviations and set the rest to NULL
-cols2Read creates an list to only read those columsn
-
-> cols2Read <- c(rep(NA,6),rep("NULL",555))
-
 Similarly read only the feature names we need ( first 6 )
 > features <- read.table('./features.txt', header=FALSE, 
 >		       stringsAsFactors = FALSE, nrows = 6)[,2]
@@ -72,17 +64,31 @@ Similarly read only the feature names we need ( first 6 )
 ### write all the rows to measurements.csv
 > write.table(allrecs, "measurements.csv", row.names=FALSE, quote=FALSE,sep=",")
 
+# allrecs now has all the rows as specified in the assignment.
+# We only need to select columns with Mean() and Std() only.
+> colIdxFun <- function(x) {
+>	if (re_matches(x, "mean|std"))
+>		if(re_matches(x, "Freq"))
+>			FALSE
+>	else
+>		TRUE
+>	else
+>		FALSE
+> }
+
+### colidx will have an index of all features with MEAN and STD in the name
+> colIdx <- sapply(features, colIdxFun)
+> names(colIdx)<- NULL
+
+### select the column indexes and make sure we add subject and activity columns (1,2)
+### this will get the column numbers
+> cols2Read <- c(1,2,data.frame(seq(3,563))[colIdx,])
+
 ### create second tidy data of grouped means
 > grouped_means <- allrecs %>% 
 >   group_by(activity, subject) %>% 
->   summarize( 
->   	AverageBodyAccMeanX=mean(`tBodyAcc-mean()-X`),
->   	AverageBodyAccMeanY=mean(`tBodyAcc-mean()-Y`),
->   	AverageBodyAccMeanZ=mean(`tBodyAcc-mean()-Z`),
->  	AverageBodyAccStdX=mean(`tBodyAcc-std()-X`),
->   	AverageBodyAccStdY=mean(`tBodyAcc-std()-Y`),
->   	AverageBodyAccStdZ=mean(`tBodyAcc-std()-Z`)
->   	)
+>   summarize_each(funs(mean))
+>   	
 
 ### write grouped means to grouped_means.csv
 > write.table(grouped_means, "grouped_means.csv", row.names=FALSE, quote=FALSE,sep=",")
