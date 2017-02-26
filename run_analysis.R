@@ -1,66 +1,46 @@
-library(data.table)
-library(dplyr)
-setwd("./UCI HAR Dataset")
-
+library(reshape2)
+setwd("~/GitHub/datagatheringassignment")
 
 # Read only the feature names we need ( first 6 )
-features <- read.table('./features.txt', header=FALSE, 
+features <- read.table('./UCI HAR Dataset/features.txt', header=FALSE, 
 		       stringsAsFactors = FALSE)[,2]
 
 # read in the activity labels
-act_lab <-read.table("./activity_labels.txt")
+act_lab <-read.table("./UCI HAR Dataset/activity_labels.txt", header=FALSE)
 
 # read only the data needed for assignment
-subj_test <- read.table('./test/subject_test.txt')
-y_test <- read.table('./test/y_test.txt')
-x_test <- read.table('./test/X_test.txt')
+subj_test <- read.table('./UCI HAR Dataset/test/subject_test.txt',header=FALSE)
+lab_test <- read.table('./UCI HAR Dataset/test/y_test.txt')
+x_test <- read.table('./UCI HAR Dataset/test/X_test.txt')
 
-subj_train <- read.table('./train/subject_train.txt')
-y_train <- read.table('./train/y_train.txt')
-x_train <- read.table('./train/X_train.txt')
-
-# convert these to data tables for easy merging
-act_lab <- as.data.table(act_lab)
-y_test <-as.data.table(y_test)
-y_train <-as.data.table(y_train)
+subj_train <- read.table('./UCI HAR Dataset/train/subject_train.txt')
+lab_train <- read.table('./UCI HAR Dataset/train/y_train.txt')
+x_train <- read.table('./UCI HAR Dataset/train/X_train.txt')
 
 #bind all columns and merge activity labels
-test_recs <- cbind(subj_test, merge(y_test, act_lab)[,2], x_test)
-train_recs <- cbind(subj_train, merge(y_train, act_lab)[,2], x_train)
+test_recs <- cbind(x_test, subj_test, lab_test)
+train_recs <- cbind(x_train, subj_train, lab_train)
+
 
 #bind all rows
-allrecs <- as.data.table(rbind(train_recs, test_recs))
+allrecs <- rbind(train_recs, test_recs)
 
 #label columns
-colnames(allrecs) <- c("subject", "activity", features)
+colnames(allrecs) <- c(features,"subject", "activity")
 allrecs$subject <- as.factor(allrecs$subject)
 
-# allrecs now has all the rows as specified in the assignment.
+# Descriptive activity labels
+allrecs$activity <- factor(allrecs$activity, labels=as.vector(act_lab[,2]))
+
 # We only need to select columns with Mean() and Std() only.
-colIdxFun <- function(x) {
-	if (re_matches(x, "mean|std"))
-		if(re_matches(x, "Freq"))
-			FALSE
-	else
-		TRUE
-	else
-		FALSE
-}
-# colidx will have an index of all features with MEAN and STD in the name
-colIdx <- sapply(features, colIdxFun)
-names(colIdx)<- NULL
+columns <- append(grep("mean", names(allrecs), value=TRUE), grep("std", names(allrecs), value=TRUE))
+allrecs <- allrecs[, c(columns, "subject", "activity")]
 
-# select the column indexes and make sure we add subject and activity columns (1,2)
-# this will get the column numbers
-cols2Read <- c(1,2,data.frame(seq(3,563))[colIdx,])
-
-allrecs <- allrecs[,..cols2Read]
-write.table(allrecs, "../measurements.csv", row.names=FALSE, quote=FALSE,sep=",")
+write.table(allrecs, "measurements.csv", row.names=FALSE, quote=FALSE,sep=",")
 
 
-grouped_means <- allrecs %>% 
-   group_by(activity, subject) %>% 
-   summarize_each(funs(mean))
+groups <- melt(allrecs, id=c("subject", "activity"))
+group_means <- dcast(groups, subject + activity ~ variable, mean)
 
-write.table(grouped_means, "../grouped_means.csv", row.names=FALSE, quote=FALSE,sep=",")
-setwd("..")
+write.table(group_means, "tidydata.csv", row.names=FALSE, quote=FALSE,sep=",")
+
